@@ -1,9 +1,10 @@
 #!/bin/bash
 
-#set -xe
+set -xe
 
 rm -fr ca
 rm -fr subca
+rm -fr myservice
 
 mkdir ca
 
@@ -42,12 +43,12 @@ openssl genrsa -aes256 -out subca/private/subca.key -passout pass:subca_secret_p
 
 echo "======================================"
 echo "Create subCA csr"
-openssl req -new -sha256 -config subca.conf -passin pass:subca_secret_password -key subca/private/subca.key \
+CERT_SAN=NIL openssl req -new -sha256 -config subca.conf -passin pass:subca_secret_password -key subca/private/subca.key \
       -out subca/csr/subca.csr
 
 echo "======================================"
 echo "Contents of subCA cert"
-openssl x509 -noout -text -in subca/csr/subca.csr
+openssl req -noout -text -in subca/csr/subca.csr
 
 echo "======================================"
 echo "Sign the subca"
@@ -78,12 +79,12 @@ openssl genrsa -aes256 -passout pass:service_key_password -out myservice/myservi
 
 echo "======================================"
 echo "Create csr for service"
-openssl req -config subca.conf -key myservice/myservice.key -new -sha256 -out myservice/myservice.csr -passin pass:service_key_password
+CERT_SAN=my.otherdomain.com openssl req -config subca.conf -key myservice/myservice.key -new -sha256 -out myservice/myservice.csr -passin pass:service_key_password
 
 
 echo "======================================"
 echo "Sign service csr"
-openssl ca -config subca.conf -extensions server_cert -extensions domain_ca -days 375 -notext -md sha256 -passin pass:subca_secret_password \
+CERT_SAN=my.otherdomain.com openssl ca -config subca.conf -extensions server_cert -extensions domain_ca -days 375 -notext -md sha256 -passin pass:subca_secret_password \
            -in myservice/myservice.csr -out myservice/myservice.crt
 
 
@@ -92,5 +93,9 @@ echo "View myservice cert"
 openssl x509 -noout -text -in myservice/myservice.crt
 
 echo "======================================"
+echo "Combine certs for a web server"
+cat myservice/myservice.crt subca/certs/subca.crt ca/certs/ca.crt  > myservice/web.crt
+
+echo "======================================"
 echo "Verify myservice's cert"
-openssl verify -CAfile subca/certs/ca-subca-chain.crt myservice/myservice.crt
+openssl verify -CAfile subca/certs/ca-subca-chain.crt myservice/web.crt
