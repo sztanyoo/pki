@@ -2,6 +2,9 @@
 
 set -xe
 
+export SUBCA_SAN_RESTRICTION=.dev.somedomain.com
+export LEAF_SAN=myservice.dev.somedomain.com
+
 rm -fr ca
 rm -fr subca
 rm -fr myservice
@@ -79,12 +82,16 @@ openssl genrsa -aes256 -passout pass:service_key_password -out myservice/myservi
 
 echo "======================================"
 echo "Create csr for service"
-CERT_SAN=my.otherdomain.com openssl req -config subca.conf -key myservice/myservice.key -new -sha256 -out myservice/myservice.csr -passin pass:service_key_password
+CERT_SAN=$LEAF_SAN openssl req -config service-ssl-config.conf -key myservice/myservice.key -new -sha256 -out myservice/myservice.csr -passin pass:service_key_password
 
 
 echo "======================================"
+echo "Contents of service cert"
+openssl req -noout -text -in myservice/myservice.csr
+
+echo "======================================"
 echo "Sign service csr"
-CERT_SAN=my.otherdomain.com openssl ca -config subca.conf -extensions server_cert -extensions domain_ca -days 375 -notext -md sha256 -passin pass:subca_secret_password \
+CERT_SAN=$LEAF_SAN openssl ca -config subca.conf -extensions server_cert -extensions domain_ca -days 375 -notext -md sha256 -passin pass:subca_secret_password \
            -in myservice/myservice.csr -out myservice/myservice.crt
 
 
